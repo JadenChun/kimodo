@@ -1,0 +1,34 @@
+FROM rocm/pytorch:rocm7.2.1_ubuntu24.04_py3.12_pytorch_release_2.9.1
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /workspace
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git curl ca-certificates \
+      cmake build-essential \
+      gosu \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rm -f /usr/local/bin/cmake || true
+
+COPY docker_requirements.txt /workspace/docker_requirements.txt
+COPY setup.py /workspace/setup.py
+COPY pyproject.toml /workspace/pyproject.toml
+COPY kimodo /workspace/kimodo
+COPY kimodo-viser /workspace/kimodo-viser
+COPY MotionCorrection /workspace/MotionCorrection
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip \
+ && SKIP_MOTION_CORRECTION_IN_SETUP=1 python -m pip install -r docker_requirements.txt
+
+COPY kimodo/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint \
+ && chmod +x /usr/local/bin/docker-entrypoint
+
+ENTRYPOINT ["docker-entrypoint"]
+CMD ["bash"]

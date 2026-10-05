@@ -39,7 +39,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Use the docker-entrypoint script, to allow the docker to run as the actual user instead of root
 COPY kimodo/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint
-RUN chmod +x /usr/local/bin/docker-entrypoint
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint \
+ && chmod +x /usr/local/bin/docker-entrypoint
 
 # Default command (change to your entrypoint if you have one)
 ENTRYPOINT ["docker-entrypoint"]

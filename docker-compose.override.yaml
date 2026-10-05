@@ -1,0 +1,27 @@
+services:
+  text-encoder:
+    environment:
+      - TEXT_ENCODER_DEVICE=cpu
+    volumes:
+      - D:/kimodo-hf-cache:/workspace/.cache/huggingface
+      - D:/kimodo-hf-cache/token:/workspace/.cache/huggingface/token:ro
+    healthcheck:
+      start_period: 15m
+
+  demo:
+    environment:
+      - VISER_NODEENV_DIR=/workspace/.viser-cache/nodeenv
+    volumes:
+      - D:/kimodo-hf-cache:/workspace/.cache/huggingface
+      - D:/kimodo-hf-cache/token:/workspace/.cache/huggingface/token:ro
+      - kimodo-viser-cache:/workspace/.viser-cache
+      - kimodo-viser-node-modules:/workspace/kimodo-viser/src/viser/client/node_modules
+      - kimodo-viser-build:/workspace/kimodo-viser/src/viser/client/build
+    depends_on:
+      text-encoder:
+        condition: service_healthy
+
+volumes:
+  kimodo-viser-cache:
+  kimodo-viser-node-modules:
+  kimodo-viser-build:

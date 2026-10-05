@@ -1,0 +1,84 @@
+name: kimodo
+
+services:
+  text-encoder:
+    build:
+      context: .
+      dockerfile: Dockerfile.rocm
+    image: kimodo:rocm
+    container_name: kimodo-rocm-text-encoder
+    working_dir: /workspace
+    command: python -m kimodo.scripts.run_text_encoder_server
+    volumes:
+      - ./:/workspace
+      - ${KIMODO_HF_CACHE:-D:/kimodo-hf-cache}:/workspace/.cache/huggingface
+      - ${KIMODO_HF_CACHE:-D:/kimodo-hf-cache}/token:/workspace/.cache/huggingface/token:ro
+      - /usr/lib/wsl/lib/libdxcore.so:/usr/lib/wsl/lib/libdxcore.so:ro
+      - ${KIMODO_ROCM_RUNTIME:-D:/kimodo-rocm-runtime/libhsa-runtime64.so.1}:/opt/rocm/lib/libhsa-runtime64.so.1:ro
+    devices:
+      - /dev/dxg:/dev/dxg
+    ports:
+      - "9550:9550"
+    environment:
+      - HF_HOME=/workspace/.cache/huggingface
+      - HOST_USER=${USER:-user}
+      - TEXT_ENCODER_DEVICE=cuda
+      - HIP_VISIBLE_DEVICES=0
+      - LD_LIBRARY_PATH=/usr/lib/wsl/lib:/opt/rocm/lib:/opt/rocm/lib64
+    shm_size: "16gb"
+    ipc: host
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - SYS_PTRACE
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -fsS http://localhost:9550/ > /dev/null"]
+      interval: 3s
+      timeout: 2s
+      retries: 40
+      start_period: 15m
+
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.rocm
+    image: kimodo:rocm
+    container_name: kimodo-rocm-demo
+    working_dir: /workspace
+    command: python -m kimodo.demo
+    volumes:
+      - ./:/workspace
+      - ${KIMODO_HF_CACHE:-D:/kimodo-hf-cache}:/workspace/.cache/huggingface
+      - ${KIMODO_HF_CACHE:-D:/kimodo-hf-cache}/token:/workspace/.cache/huggingface/token:ro
+      - ./checkpoints:/workspace/checkpoints:ro
+      - kimodo-rocm-viser-cache:/workspace/.viser-cache
+      - kimodo-rocm-viser-node-modules:/workspace/kimodo-viser/src/viser/client/node_modules
+      - kimodo-rocm-viser-build:/workspace/kimodo-viser/src/viser/client/build
+      - /usr/lib/wsl/lib/libdxcore.so:/usr/lib/wsl/lib/libdxcore.so:ro
+      - ${KIMODO_ROCM_RUNTIME:-D:/kimodo-rocm-runtime/libhsa-runtime64.so.1}:/opt/rocm/lib/libhsa-runtime64.so.1:ro
+    devices:
+      - /dev/dxg:/dev/dxg
+    ports:
+      - "${SERVER_PORT:-7860}:${SERVER_PORT:-7860}"
+    environment:
+      - TEXT_ENCODER_URL=http://text-encoder:9550/
+      - SERVER_PORT=${SERVER_PORT:-7860}
+      - HF_HOME=/workspace/.cache/huggingface
+      - HOST_USER=${USER:-user}
+      - HIP_VISIBLE_DEVICES=0
+      - VISER_NODEENV_DIR=/workspace/.viser-cache/nodeenv
+      - LD_LIBRARY_PATH=/usr/lib/wsl/lib:/opt/rocm/lib:/opt/rocm/lib64
+    shm_size: "16gb"
+    ipc: host
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - SYS_PTRACE
+    depends_on:
+      text-encoder:
+        condition: service_healthy
+
+volumes:
+  kimodo-rocm-viser-cache:
+  kimodo-rocm-viser-node-modules:
+  kimodo-rocm-viser-build:

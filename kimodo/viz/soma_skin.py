@@ -71,12 +71,16 @@ class SOMASkin:
             # lbs_weights: [..., V, W]
 
         affine_mat = (posed_transform @ bind_rig_transform_inv)[..., :3, :]  # [..., J, 3, 4]
-        vs = (
-            affine_mat[..., self.lbs_indices, :, :]
-            @ torch.concat([bind_vertices, torch.ones_like(bind_vertices[..., 0:1])], dim=-1)[..., None, :, None]
-        )  # [..., V, W, 3, 1]
+        indexed_affines = affine_mat[..., self.lbs_indices, :, :]  # [..., V, W, 3, 4]
+        homogeneous_vertices = torch.concat(
+            [bind_vertices, torch.ones_like(bind_vertices[..., 0:1])], dim=-1
+        )[..., None, :]  # [..., V, 1, 4]
+        # Avoid batched matmul here. ROCm 7.2 / PyTorch 2.9 on gfx1201
+        # produces incorrect results for this broadcasted shape, while the
+        # mathematically equivalent multiply-and-reduce works on CUDA and HIP.
+        vs = (indexed_affines * homogeneous_vertices[..., None, :]).sum(dim=-1)  # [..., V, W, 3]
         ws = lbs_weights[..., None, None]
-        resv = (vs * ws).sum(dim=-3).squeeze(-1)  # [..., V, 3]
+        resv = (vs * ws.squeeze(-1)).sum(dim=-2)  # [..., V, 3]
         return resv
 
     def skin(self, joint_rotmat, joint_pos, rot_is_global=False):
